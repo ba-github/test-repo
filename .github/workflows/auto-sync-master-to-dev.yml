@@ -1,0 +1,92 @@
+name: Auto PR master → develop
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  auto-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch branches
+        run: git fetch origin develop
+
+      - name: Check for merge conflicts
+        id: check_merge
+        run: |
+          set -e
+          git checkout develop
+          git merge origin/master --no-commit --no-ff || echo "conflict" > merge_status.txt
+          if [ -f merge_status.txt ]; then
+            echo "conflict=true" >> $GITHUB_OUTPUT
+            git merge --abort || true
+            echo "⚠️ Merge conflict detected. Skipping PR creation."
+          else
+            echo "conflict=false" >> $GITHUB_OUTPUT
+            git merge --abort || true
+            echo "✅ No conflicts found."
+          fi
+
+      - name: Create Pull Request
+        if: steps.check_merge.outputs.conflict == 'false'
+        id: create_pr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.PAT_GITHUB }}
+          base: develop
+          branch: master
+          title: "Auto PR: Merge master into develop"
+          body: |
+            This PR was automatically created by GitHub Actions.
+            - Source: `master`
+            - Target: `develop`
+            - Conflicts: None
+          labels: auto-merge
+          draft: false
+
+      - name: Debug PR number
+        if: always()
+        run: echo "PR number: ${{ steps.create_pr.outputs.pull-request-number }}"
+
+      - name: Approve Pull Request (using bot)
+        if: steps.create_pr.outputs.pull-request-number != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BOT_TOKEN }}
+          script: |
+            const pr_number = parseInt("${{ steps.create_pr.outputs.pull-request-number }}");
+            const owner = process.env.GITHUB_REPOSITORY_OWNER;
+            const repo = process.env.GITHUB_REPOSITORY.split('/')[1];
+            console.log(`Approving PR #${pr_number} on ${owner}/${repo}`);
+
+            await github.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number: pr_number,
+              event: "APPROVE",
+              body: "✅ Auto-approved by merge-bot"
+            });
+            console.log(`Approved PR #${pr_number}`);
+
+      - name: Enable auto-merge
+        if: steps.create_pr.outputs.pull-request-number != ''
+        uses: peter-evans/enable-pull-request-automerge@v3
+        with:
+          token: ${{ secrets.PAT_GITHUB }}
+          pull-request-number: ${{ steps.create_pr.outputs.pull-request-number }}
+          merge-method: merge
