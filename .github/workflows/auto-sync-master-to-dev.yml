@@ -60,7 +60,7 @@ jobs:
 
       - name: Debug PR number
         if: always()
-        run: echo "PR number: ${{ steps.create_pr.outputs.pull-request-number }}"
+        run: echo "PR number:" ${{ steps.create_pr.outputs.pull-request-number }}
 
       - name: Approve Pull Request (using bot)
         if: steps.create_pr.outputs.pull-request-number != ''
