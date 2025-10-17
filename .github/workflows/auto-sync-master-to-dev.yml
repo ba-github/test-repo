@@ -1,4 +1,4 @@
-name: Auto PR master → develop
+name: Auto PR master to develop
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Fetch branches
+      - name: Fetch develop branch
         run: git fetch origin develop
 
       - name: Check for merge conflicts
@@ -51,11 +51,10 @@ jobs:
           base: develop
           branch: master
           title: "Auto PR: Merge master into develop"
-          body: |
+          body: >
             This PR was automatically created by GitHub Actions.
-            - Source: `master`
-            - Target: `develop`
-            - Conflicts: None
+            Source: `master` → Target: `develop`.
+            No merge conflicts were detected.
           labels: auto-merge
           draft: false
 
